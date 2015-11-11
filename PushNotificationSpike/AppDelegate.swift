@@ -15,7 +15,15 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
 
     func application(application: UIApplication, didFinishLaunchingWithOptions launchOptions: [NSObject: AnyObject]?) -> Bool {
-        // Override point for customization after application launch.
+        
+        /*
+        * Push notifications
+        */
+        
+        let userNotificationTypes: UIUserNotificationType = [.Badge, .Alert, .Sound]
+        let notificationSettings = UIUserNotificationSettings(forTypes: userNotificationTypes, categories: nil)
+        application.registerUserNotificationSettings(notificationSettings)
+        
         return true
     }
 
@@ -41,6 +49,57 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Called when the application is about to terminate. Save data if appropriate. See also applicationDidEnterBackground:.
     }
 
+    
+    // MARK: - Push notifications
+    
+    func application(application: UIApplication, didReceiveRemoteNotification userInfo: [NSObject : AnyObject]) {
+        // Perform an action in-app when a notification is received
+    }
+    
+    func application(application: UIApplication, didRegisterUserNotificationSettings notificationSettings: UIUserNotificationSettings) {
+        application.registerForRemoteNotifications()
+        
+        // Check if the user has disabled opt in via notifications, and if they have already registered a device token
+        // If so, send the opt out flag
+        let optInSettings = PushRegistrationService.sharedInstance.isUserOptionedIn(application)
+        if !optInSettings {
+            let deviceTokenString: String? = NSUserDefaults.standardUserDefaults().stringForKey("PushDeviceTokenString")
+            
+            if deviceTokenString != nil {
+                let accountId: String? = NSUserDefaults.standardUserDefaults().stringForKey("AccountId")
+                
+                PushRegistrationService.sharedInstance.registerDevice(deviceTokenString!, optIn: false, accountId: accountId)
+            }
+        }
+    }
+    
+    func application(application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: NSData) {
+        // We will only be here if the user has not manually disabled notifications and the device successfully registers
+        let deviceTokenString = deviceToken.description.stringByTrimmingCharactersInSet(NSCharacterSet(charactersInString: "<>"))
+        
+        NSUserDefaults.standardUserDefaults().setValue(deviceTokenString, forKey:"PushDeviceTokenString")
+        NSUserDefaults.standardUserDefaults().synchronize();
+        
+        // Copy the device ID to the clipboard and show an alert. Useful for debugging
+        copyUIDToClipboard(deviceTokenString)
+        
+        let accountId: String? = NSUserDefaults.standardUserDefaults().stringForKey("AccountId")
+        
+        PushRegistrationService.sharedInstance.registerDevice(deviceTokenString, optIn: true, accountId: accountId)
+    }
+    
+    func application(application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: NSError) {
+        NSLog("Error registering push notification: %@", error.description)
+    }
+    
+    private func copyUIDToClipboard(uid: String) {
+        
+        // Copy the UID to the clipboard
+        let pasteboard = UIPasteboard.generalPasteboard()
+        pasteboard.string = uid
+        
+        AlertUtility.showAlert("Push Notification Device ID", message: String(format: "\"%@\" copied to clipboard", uid), forViewController: self.window?.rootViewController)
+    }
 
 }
 
